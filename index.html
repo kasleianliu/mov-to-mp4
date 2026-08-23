@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MOV 转 MP4 批量转换器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0f1115;
+    --card: #181b22;
+    --card-2: #20242d;
+    --border: #2a2f3a;
+    --text: #e8eaed;
+    --muted: #9aa0aa;
+    --accent: #4f8cff;
+    --accent-2: #2f6bff;
+    --success: #2ecc71;
+    --danger: #ff5c5c;
+    --warn: #ffa940;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px 16px 80px;
+  }
+  header {
+    text-align: center;
+    padding: 16px 0 20px;
+  }
+  header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  header p {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  /* 上传区 */
+  .drop-zone {
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 36px 18px;
+    text-align: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: var(--card-2);
+  }
+  .drop-zone .icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+  }
+  .drop-zone .title {
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .drop-zone .hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  .drop-zone input { display: none; }
+
+  /* 状态条 */
+  .status-bar {
+    margin-top: 16px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .status-bar .engine-status {
+    font-size: 12px;
+  }
+  .status-bar .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .status-bar .dot.ready { background: var(--success); }
+  .status-bar .dot.loading { background: var(--warn); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  /* 操作按钮 */
+  .actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.1s ease, opacity 0.2s ease;
+    background: var(--accent);
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.secondary { background: var(--card-2); border: 1px solid var(--border); }
+  .btn.danger { background: var(--danger); }
+
+  /* 文件列表 */
+  .file-list {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .file-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .file-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: var(--card-2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .file-meta { flex: 1; min-width: 0; }
+  .file-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-size {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .file-state {
+    font-size: 12px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .file-state.success { color: var(--success); }
+  .file-state.error { color: var(--danger); }
+  .file-state.processing { color: var(--warn); }
+
+  .progress-bar {
+    height: 4px;
+    background: var(--card-2);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.2s ease;
+  }
+
+  .file-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+  }
+  .file-actions .btn {
+    flex: 1;
+    min-width: auto;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* 全局进度 */
+  .global-progress {
+    margin-top: 14px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .global-progress .label {
+    font-size: 13px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .global-progress .label span:last-child { color: var(--muted); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 24px;
+    font-size: 13px;
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.25s ease;
+    pointer-events: none;
+    max-width: 90%;
+    text-align: center;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* 空状态 */
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 30px 0;
+  }
+
+  /* 刷新提示横幅 */
+  .reload-banner {
+    display: none;
+    margin-top: 16px;
+    background: var(--warn);
+    color: #1a1a1a;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    text-align: center;
+    font-weight: 500;
+  }
+  .reload-banner.show { display: block; }
+  .reload-banner button {
+    margin-left: 10px;
+    padding: 4px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #1a1a1a;
+    color: var(--warn);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  footer {
+    margin-top: 30px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 480px) {
+    .container { padding: 16px 12px 70px; }
+    header h1 { font-size: 20px; }
+    .drop-zone { padding: 28px 14px; }
+    .file-icon { width: 34px; height: 34px; font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>MOV 转 MP4 批量转换器</h1>
+    <p>完全在浏览器本地转换，文件不会上传到服务器</p>
+  </header>
+
+  <!-- 刷新提示（COOP/COEP 生效后需刷新一次） -->
+  <div class="reload-banner" id="reloadBanner">
+    引擎环境已就绪，请点击刷新以激活转换引擎
+    <button onclick="location.reload()">立即刷新</button>
+  </div>
+
+  <!-- 上传区 -->
+  <label class="drop-zone" id="dropZone">
+    <div class="icon">🎬</div>
+    <div class="title">点击或拖拽 MOV 文件到此处</div>
+    <div class="hint">支持批量选择 · 仅支持 .mov 格式</div>
+    <input type="file" id="fileInput" accept="video/quicktime,.mov" multiple>
+  </label>
+
+  <!-- 引擎状态 -->
+  <div class="status-bar">
+    <div><span class="dot loading" id="engineDot"></span><span id="engineText">转换引擎加载中…</span></div>
+    <div class="engine-status" id="engineVersion"></div>
+  </div>
+
+  <!-- 全局进度 -->
+  <div class="global-progress" id="globalProgress" style="display:none;">
+    <div class="label">
+      <span id="globalLabel">准备转换…</span>
+      <span id="globalCount">0 / 0</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="globalFill"></div></div>
+  </div>
+
+  <!-- 操作按钮 -->
+  <div class="actions" id="actions" style="display:none;">
+    <button class="btn" id="convertAllBtn" disabled>全部转换</button>
+    <button class="btn secondary" id="downloadAllBtn">全部下载</button>
+    <button class="btn danger" id="clearAllBtn">清空列表</button>
+  </div>
+
+  <!-- 文件列表 -->
+  <div class="file-list" id="fileList"></div>
+
+  <footer>
+    基于 ffmpeg.wasm · 所有转换在本地浏览器完成<br>
+    首次使用需加载转换引擎（约 30MB），请耐心等待
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="ffmpeg/ffmpeg.js"></script>
+<script src="ffmpeg/util.js"></script>
+<script>
+const { FFmpeg } = FFmpegWASM;
+const { fetchFile, downloadFile } = FFmpegUtil;
+
+const ffmpeg = new FFmpeg();
+let ffmpegReady = false;
+let isConverting = false;
+let files = []; // {id, file, name, size, status, progress, outputName, outputBlob, error}
+
+const $ = (id) => document.getElementById(id);
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const fileList = $('fileList');
+const actions = $('actions');
+const convertAllBtn = $('convertAllBtn');
+const downloadAllBtn = $('downloadAllBtn');
+const clearAllBtn = $('clearAllBtn');
+const globalProgress = $('globalProgress');
+const globalFill = $('globalFill');
+const globalLabel = $('globalLabel');
+const globalCount = $('globalCount');
+const engineDot = $('engineDot');
+const engineText = $('engineText');
+const engineVersion = $('engineVersion');
+const toast = $('toast');
+const reloadBanner = $('reloadBanner');
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// 初始化 ffmpeg
+async function initFFmpeg() {
+  try {
+    engineDot.className = 'dot loading';
+    engineText.textContent = '转换引擎加载中…';
+
+    const baseURL = location.origin + location.pathname.replace(/[^/]*$/, '');
+    const coreURL = baseURL + 'ffmpeg/ffmpeg-core.js';
+    const wasmURL = baseURL + 'ffmpeg/ffmpeg-core.wasm';
+
+    ffmpeg.on('log', () => {});
+    ffmpeg.on('progress', ({ progress, time }) => {
+      // 全局进度由单文件进度聚合
+    });
+
+    await ffmpeg.load({ coreURL, wasmURL });
+    ffmpegReady = true;
+    engineDot.className = 'dot ready';
+    engineText.textContent = '转换引擎已就绪';
+    engineVersion.textContent = 'ffmpeg.wasm v0.12';
+    convertAllBtn.disabled = false;
+  } catch (e) {
+    console.error(e);
+    engineDot.className = 'dot';
+    engineText.textContent = '引擎加载失败，请刷新重试';
+    showToast('转换引擎加载失败，请检查网络');
+  }
+}
+
+// 文件选择
+function handleFiles(selected) {
+  const movFiles = Array.from(selected).filter(f =>
+    f.name.toLowerCase().endsWith('.mov') ||
+    f.type === 'video/quicktime'
+  );
+  if (movFiles.length === 0) {
+    showToast('请选择 .mov 格式的视频文件');
+    return;
+  }
+  const skipped = selected.length - movFiles.length;
+  if (skipped > 0) showToast(`已自动过滤 ${skipped} 个非 MOV 文件`);
+
+  movFiles.forEach(file => {
+    files.push({
+      id: Date.now() + '_' + Math.random().toString(36).slice(2),
+      file,
+      name: file.name,
+      size: file.size,
+      status: 'pending', // pending, processing, success, error
+      progress: 0,
+      outputName: null,
+      outputBlob: null,
+      error: null
+    });
+  });
+  renderList();
+}
+
+dropZone.addEventListener('click', () => {});
+fileInput.addEventListener('change', (e) => {
+  handleFiles(e.target.files);
+  fileInput.value = '';
+});
+
+['dragenter', 'dragover'].forEach(evt => {
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('dragover');
+  });
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('dragover');
+  });
+});
+dropZone.addEventListener('drop', (e) => {
+  if (e.dataTransfer && e.dataTransfer.files) {
+    handleFiles(e.dataTransfer.files);
+  }
+});
+
+// 渲染列表
+function renderList() {
+  if (files.length === 0) {
+    fileList.innerHTML = '<div class="empty">暂无文件，请先添加 MOV 视频</div>';
+    actions.style.display = 'none';
+    globalProgress.style.display = 'none';
+    return;
+  }
+  actions.style.display = 'flex';
+  fileList.innerHTML = files.map(f => {
+    const stateText = {
+      pending: '待转换',
+      processing: '转换中…',
+      success: '已完成',
+      error: '失败'
+    }[f.status] || '待转换';
+    const stateClass = f.status;
+    const icon = f.status === 'success' ? '✅' : f.status === 'error' ? '⚠️' : '🎬';
+    let extra = '';
+    if (f.status === 'processing') {
+      extra = `<div class="progress-bar"><div class="progress-fill" style="width:${f.progress}%"></div></div>`;
+    }
+    let fileActions = '';
+    if (f.status === 'success' && f.outputBlob) {
+      fileActions = `<div class="file-actions">
+        <button class="btn" onclick="downloadOne('${f.id}')">下载 MP4</button>
+        <button class="btn secondary" onclick="removeOne('${f.id}')">移除</button>
+      </div>`;
+    } else if (f.status === 'error') {
+      fileActions = `<div class="file-actions">
+        <button class="btn" onclick="retryOne('${f.id}')">重试</button>
+        <button class="btn secondary" onclick="removeOne('${f.id}')">移除</button>
+      </div>`;
+    } else if (f.status === 'pending') {
+      fileActions = `<div class="file-actions">
+        <button class="btn" onclick="convertOne('${f.id}')">立即转换</button>
+        <button class="btn secondary" onclick="removeOne('${f.id}')">移除</button>
+      </div>`;
+    }
+    const outputInfo = f.outputBlob ? `<div class="file-size">输出: ${escapeHtml(f.outputName)} · ${formatSize(f.outputBlob.size)}</div>` : '';
+    return `<div class="file-item">
+      <div class="file-row">
+        <div class="file-icon">${icon}</div>
+        <div class="file-meta">
+          <div class="file-name">${escapeHtml(f.name)}</div>
+          <div class="file-size">${formatSize(f.size)}</div>
+          ${outputInfo}
+        </div>
+        <div class="file-state ${stateClass}">${stateText}</div>
+      </div>
+      ${extra}
+      ${fileActions}
+    </div>`;
+  }).join('');
+}
+
+window.downloadOne = (id) => {
+  const f = files.find(x => x.id === id);
+  if (!f || !f.outputBlob) return;
+  const url = URL.createObjectURL(f.outputBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.outputName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+window.removeOne = (id) => {
+  files = files.filter(x => x.id !== id);
+  renderList();
+};
+
+window.retryOne = async (id) => {
+  const f = files.find(x => x.id === id);
+  if (!f) return;
+  f.status = 'pending';
+  f.progress = 0;
+  f.error = null;
+  renderList();
+  await convertOne(id);
+};
+
+window.convertOne = convertOne;
+
+// 转换单个文件
+async function convertOne(id) {
+  const f = files.find(x => x.id === id);
+  if (!f || f.status === 'processing' || f.status === 'success') return;
+  if (!ffmpegReady) {
+    showToast('转换引擎尚未就绪，请稍候');
+    return;
+  }
+  if (isConverting) {
+    showToast('当前已有转换任务进行中');
+    return;
+  }
+  isConverting = true;
+  f.status = 'processing';
+  f.progress = 0;
+  renderList();
+
+  const inputName = 'input_' + f.id + '.mov';
+  const outputName = f.name.replace(/\.mov$/i, '') + '.mp4';
+
+  // 单文件进度
+  const progressHandler = ({ progress }) => {
+    if (progress > 0 && progress <= 1) {
+      f.progress = Math.round(progress * 100);
+      updateFileProgress(f);
+    }
+  };
+  ffmpeg.on('progress', progressHandler);
+
+  try {
+    await ffmpeg.writeFile(inputName, await fetchFile(f.file));
+    await ffmpeg.exec([
+      '-i', inputName,
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-c:a', 'aac',
+      '-movflags', '+faststart',
+      outputName
+    ]);
+    const data = await ffmpeg.readFile(outputName);
+    f.outputBlob = new Blob([data.buffer], { type: 'video/mp4' });
+    f.outputName = outputName;
+    f.status = 'success';
+    f.progress = 100;
+
+    try { await ffmpeg.deleteFile(inputName); } catch (e) {}
+    try { await ffmpeg.deleteFile(outputName); } catch (e) {}
+  } catch (e) {
+    console.error(e);
+    f.status = 'error';
+    f.error = e.message || '转换失败';
+  } finally {
+    ffmpeg.off('progress', progressHandler);
+    isConverting = false;
+    renderList();
+    updateGlobalProgress();
+  }
+}
+
+function updateFileProgress(f) {
+  // 仅更新该文件的进度条，避免整体重渲染
+  const items = fileList.querySelectorAll('.file-item');
+  const idx = files.indexOf(f);
+  if (idx < 0 || !items[idx]) return;
+  const fill = items[idx].querySelector('.progress-fill');
+  if (fill) fill.style.width = f.progress + '%';
+}
+
+// 全部转换
+convertAllBtn.addEventListener('click', async () => {
+  if (!ffmpegReady) { showToast('转换引擎尚未就绪'); return; }
+  const pending = files.filter(f => f.status === 'pending' || f.status === 'error');
+  if (pending.length === 0) { showToast('没有需要转换的文件'); return; }
+  globalProgress.style.display = 'block';
+  convertAllBtn.disabled = true;
+  let done = 0;
+  const total = pending.length;
+  for (const f of pending) {
+    globalLabel.textContent = `正在转换: ${f.name}`;
+    updateGlobalProgress(done, total);
+    await convertOne(f.id);
+    done++;
+    updateGlobalProgress(done, total);
+  }
+  globalLabel.textContent = '全部转换完成';
+  convertAllBtn.disabled = false;
+  showToast(`已完成 ${done} 个文件转换`);
+});
+
+function updateGlobalProgress(done, total) {
+  if (done === undefined) {
+    const success = files.filter(f => f.status === 'success').length;
+    const total2 = files.length;
+    globalCount.textContent = `${success} / ${total2}`;
+    globalFill.style.width = total2 ? (success / total2 * 100) + '%' : '0%';
+  } else {
+    globalCount.textContent = `${done} / ${total}`;
+    globalFill.style.width = (done / total * 100) + '%';
+  }
+}
+
+// 全部下载（打包）
+downloadAllBtn.addEventListener('click', async () => {
+  const ok = files.filter(f => f.status === 'success' && f.outputBlob);
+  if (ok.length === 0) { showToast('没有可下载的文件'); return; }
+  if (ok.length === 1) { downloadOne(ok[0].id); return; }
+  // 逐个下载（浏览器限制无法批量打包，依次触发）
+  for (const f of ok) {
+    downloadOne(f.id);
+    await new Promise(r => setTimeout(r, 500));
+  }
+  showToast(`已开始下载 ${ok.length} 个文件`);
+});
+
+clearAllBtn.addEventListener('click', () => {
+  if (isConverting) { showToast('转换进行中，无法清空'); return; }
+  files = [];
+  renderList();
+  globalProgress.style.display = 'none';
+});
+
+// ============ COOP/COEP polyfill (GitHub Pages 适用) ============
+// 通过 service worker 注入 cross-origin isolation 头，使 SharedArrayBuffer 可用
+(function setupCOI() {
+  if (window.crossOriginIsolated) {
+    // 已处于隔离环境，直接初始化引擎
+    renderList();
+    initFFmpeg();
+    return;
+  }
+  // 注册 service worker 注入 COOP/COEP 头
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('coi-serviceworker.js', { scope: './' }).then(reg => {
+      // service worker 注册成功，需刷新页面让 COOP/COEP 生效
+      if (reg.active && !navigator.serviceWorker.controller) {
+        // 首次注册，显示刷新提示
+        reloadBanner.classList.add('show');
+        engineText.textContent = '请刷新页面以激活引擎环境';
+      } else if (navigator.serviceWorker.controller) {
+        // service worker 已控制页面，但当前文档未隔离，需要重新加载
+        location.reload();
+      } else {
+        reloadBanner.classList.add('show');
+      }
+    }).catch(err => {
+      console.error('Service Worker 注册失败:', err);
+      engineText.textContent = '环境初始化失败，请刷新重试';
+    });
+  } else {
+    engineText.textContent = '浏览器不支持 Service Worker，无法运行';
+  }
+})();
+</script>
+</body>
+</html>
